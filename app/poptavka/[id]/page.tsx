@@ -6,7 +6,34 @@ import ConfirmButton from "@/components/ConfirmButton";
 import {
   czk, date, dateTime, JOB_SIZE_LABEL, OFFER_STATUS_LABEL, REQUEST_STATUS_LABEL,
 } from "@/lib/config";
-import { cancelRequest, placeOffer, selectOffer, withdrawOffer } from "./actions";
+import { cancelRequest, placeOffer, replyReview, selectOffer, submitReview, withdrawOffer } from "./actions";
+
+type Review = {
+  id: string; provider_id: string; rating: number; comment: string | null;
+  reply: string | null; created_at: string;
+};
+
+const stars = (n: number) => "★".repeat(n) + "☆".repeat(5 - n);
+
+function ReviewView({ review, providerName }: { review: Review; providerName?: string }) {
+  return (
+    <div>
+      <div style={{ color: "var(--accent)", fontSize: "1.3rem", letterSpacing: 2 }}>{stars(review.rating)}</div>
+      {review.comment && <p style={{ whiteSpace: "pre-wrap", margin: "6px 0" }}>„{review.comment}“</p>}
+      <div className="small muted">{date(review.created_at)}</div>
+      {review.reply && (
+        <div style={{ borderLeft: "3px solid var(--line)", paddingLeft: 12, marginTop: 10 }}>
+          <div className="small muted">Odpověď{providerName ? ` – ${providerName}` : " řemeslníka"}:</div>
+          <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{review.reply}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const RATING_OPTIONS = [
+  [5, "výborné"], [4, "velmi dobré"], [3, "průměrné"], [2, "špatné"], [1, "velmi špatné"],
+] as const;
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -35,6 +62,10 @@ export default async function RequestPage({ params, searchParams }: Props) {
 
   const { data: contacts } = r.status === "assigned"
     ? await supabase.rpc("get_contacts", { p_request_id: id })
+    : { data: null };
+
+  const { data: review } = r.status === "assigned"
+    ? await supabase.from("reviews").select("*").eq("request_id", id).maybeSingle()
     : { data: null };
 
   return (
@@ -84,25 +115,60 @@ export default async function RequestPage({ params, searchParams }: Props) {
       )}
 
       {isCustomer
-        ? <CustomerView request={r} />
-        : <ProviderView request={r} meId={me.id} isProvider={me.isProvider} />}
+        ? <CustomerView request={r} review={review as Review | null} />
+        : <ProviderView request={r} meId={me.id} isProvider={me.isProvider} review={review as Review | null} />}
     </main>
   );
 }
 
 /* ------------------------- Pohled zákazníka ------------------------- */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function CustomerView({ request: r }: { request: any }) {
+async function CustomerView({ request: r, review }: { request: any; review: Review | null }) {
   const supabase = await createClient();
   const { data: offers } = await supabase
     .from("offers")
-    .select("id, price_czk, start_date, message, status, created_at, provider_profiles(company_name, city, rating_avg, rating_count, ico)")
+    .select("id, provider_id, price_czk, start_date, message, status, created_at, provider_profiles(company_name, city, rating_avg, rating_count, ico)")
     .eq("request_id", r.id)
     .neq("status", "withdrawn")
     .order("price_czk");
 
+  // Poslední hodnocení řemeslníků, kteří nabízejí – pomůže zákazníkovi vybrat
+  const providerIds = (offers ?? []).map((o) => o.provider_id);
+  const { data: pastReviews } = providerIds.length && r.status === "open"
+    ? await supabase.from("reviews").select("*").in("provider_id", providerIds)
+        .not("comment", "is", null).order("created_at", { ascending: false }).limit(30)
+    : { data: [] as Review[] };
+  const reviewsOf = (pid: string) => (pastReviews ?? []).filter((x) => x.provider_id === pid).slice(0, 2);
+  const selectedName = (offers ?? []).find((o) => o.status === "selected")?.provider_profiles as unknown as { company_name: string } | undefined;
+
   return (
     <section className="stack">
+      {r.status === "assigned" && (
+        <div className="card">
+          <h2>{review ? "Vaše hodnocení" : "Ohodnoťte řemeslníka"}</h2>
+          {review ? <ReviewView review={review} providerName={selectedName?.company_name} /> : (
+            <form action={submitReview}>
+              <input type="hidden" name="request_id" value={r.id} />
+              <p className="muted">Až bude práce hotová, dejte vědět ostatním, jak to dopadlo. Hodnocení je veřejné.</p>
+              <div className="field">
+                {RATING_OPTIONS.map(([n, label]) => (
+                  <label key={n} style={{ fontWeight: 400, display: "flex", gap: 10, alignItems: "center", marginBottom: 6 }}>
+                    <input type="radio" name="rating" value={n} required />
+                    <span style={{ color: "var(--accent)", fontSize: "1.2rem", letterSpacing: 2 }}>{stars(n)}</span>
+                    <span className="muted">{label}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="field">
+                <label>Komentář <span className="hint">(nepovinné)</span></label>
+                <textarea name="comment" maxLength={2000} placeholder="Jak probíhala spolupráce, dodržel termín a cenu, kvalita práce…" />
+              </div>
+              <button className="btn accent">Odeslat hodnocení</button>
+            </form>
+          )}
+        </div>
+      )}
+
       <h2>Nabídky ({offers?.length ?? 0})</h2>
       {!offers?.length && (
         <div className="card muted">Zatím žádná nabídka. Řemeslníci obvykle reagují během 1–2 dnů. Dáme vám vědět e-mailem.</div>
@@ -125,6 +191,16 @@ async function CustomerView({ request: r }: { request: any }) {
               </div>
             </div>
             <p style={{ whiteSpace: "pre-wrap", marginTop: 12 }}>{o.message}</p>
+            {reviewsOf(o.provider_id).length > 0 && (
+              <div className="stack small" style={{ background: "var(--bg)", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                <strong>Co o něm píšou zákazníci</strong>
+                {reviewsOf(o.provider_id).map((rv) => (
+                  <div key={rv.id}>
+                    <span style={{ color: "var(--accent)" }}>{stars(rv.rating)}</span> „{rv.comment}“
+                  </div>
+                ))}
+              </div>
+            )}
             {o.status === "selected" && <span className="badge selected">Vybraný řemeslník</span>}
             {r.status === "open" && o.status === "pending" && (
               <form action={selectOffer}>
@@ -153,7 +229,7 @@ async function CustomerView({ request: r }: { request: any }) {
 
 /* ------------------------- Pohled řemeslníka ------------------------- */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function ProviderView({ request: r, meId, isProvider }: { request: any; meId: string; isProvider: boolean }) {
+async function ProviderView({ request: r, meId, isProvider, review }: { request: any; meId: string; isProvider: boolean; review: Review | null }) {
   if (!isProvider) {
     return <div className="card">Na poptávky mohou odpovídat jen řemeslníci. <Link href="/remeslnik/profil">Vyplnit řemeslnický profil</Link></div>;
   }
@@ -185,6 +261,29 @@ async function ProviderView({ request: r, meId, isProvider }: { request: any; me
             <input type="hidden" name="offer_id" value={myOffer.id} />
             <ConfirmButton className="btn secondary" message="Stáhnout nabídku? Kredity se vám vrátí.">Stáhnout nabídku</ConfirmButton>
           </form>
+        )}
+        {myOffer.status === "selected" && (
+          <div style={{ borderTop: "1px solid var(--line)", marginTop: 16, paddingTop: 16 }}>
+            <h3>Hodnocení od zákazníka</h3>
+            {!review ? (
+              <p className="muted small">Zákazník zatím nehodnotil. Hodnotit může, až bude práce hotová.</p>
+            ) : (
+              <>
+                <ReviewView review={review} providerName="vy" />
+                {!review.reply && (
+                  <form action={replyReview} style={{ marginTop: 12 }}>
+                    <input type="hidden" name="request_id" value={r.id} />
+                    <input type="hidden" name="review_id" value={review.id} />
+                    <div className="field">
+                      <label>Vaše odpověď <span className="hint">(veřejná, jde napsat jen jednou)</span></label>
+                      <textarea name="reply" required maxLength={2000} style={{ minHeight: 80 }} />
+                    </div>
+                    <button className="btn secondary">Odpovědět</button>
+                  </form>
+                )}
+              </>
+            )}
+          </div>
         )}
       </div>
     );
