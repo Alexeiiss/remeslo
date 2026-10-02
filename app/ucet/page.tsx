@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { requireMe } from "@/lib/session";
 import { humanError } from "@/lib/config";
+import PhoneVerify from "@/components/PhoneVerify";
 
 export const metadata = { title: "Můj účet" };
 
@@ -24,6 +25,8 @@ type SP = Promise<{ chyba?: string; ok?: string; dalsi?: string }>;
 export default async function AccountPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
   const me = await requireMe("/ucet");
+  const supabase = await createClient();
+  const { data: prof } = await supabase.from("profiles").select("phone_verified").eq("id", me.id).single();
 
   return (
     <main className="container" style={{ maxWidth: 520 }}>
@@ -42,6 +45,10 @@ export default async function AccountPage({ searchParams }: { searchParams: SP }
           </div>
           <button className="btn">Uložit</button>
         </form>
+      </div>
+      <div className="card">
+        <h2>Ověření telefonu</h2>
+        <PhoneVerify phone={me.phone} verified={!!prof?.phone_verified} />
       </div>
     </main>
   );

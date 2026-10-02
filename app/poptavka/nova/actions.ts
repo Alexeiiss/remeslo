@@ -19,7 +19,7 @@ export async function createRequest(formData: FormData): Promise<CreateResult> {
     p_preferred_start: String(formData.get("preferred_start") || "") || null,
   });
   if (error) {
-    if (error.message.includes("CHYBI_TELEFON")) {
+    if (error.message.includes("CHYBI_TELEFON") || error.message.includes("TELEFON_NEOVEREN")) {
       return { redirect: "/ucet?dalsi=/poptavka/nova&chyba=" + encodeURIComponent(humanError(error.message)) };
     }
     if (error.message.includes("check constraint")) return { error: "Zkontrolujte název (5–120 znaků) a popis (aspoň 20 znaků)." };

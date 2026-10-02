@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import { getPaymentStatus, isValidNotificationSecret } from "@/lib/comgate";
+import { afterPaymentConfirmed } from "@/lib/billing";
 
 // Notifikace o výsledku platby od Comgate (nastavit v portálu Comgate jako "URL pro předání výsledku platby")
 export async function POST(request: NextRequest) {
@@ -22,6 +23,7 @@ export async function POST(request: NextRequest) {
     if (status === "PAID") {
       const { error } = await admin.rpc("confirm_payment", { p_payment_id: paymentId, p_gateway_ref: body.transId });
       if (error) throw error;
+      await afterPaymentConfirmed(paymentId);
     } else if (status === "CANCELLED") {
       await admin.from("payments").update({ status: "cancelled" }).eq("id", paymentId).eq("status", "pending");
     }

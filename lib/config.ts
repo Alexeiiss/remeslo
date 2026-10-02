@@ -37,6 +37,7 @@ export const LEDGER_LABEL: Record<string, string> = {
 const ERRORS: Record<string, string> = {
   NEPRIHLASEN: "Nejste přihlášeni.",
   CHYBI_TELEFON: "Před zadáním poptávky doplňte v účtu telefon.",
+  TELEFON_NEOVEREN: "Před zadáním poptávky si prosím ověřte telefon SMS kódem (níže na této stránce).",
   CHYBI_NAZEV: "Vyplňte název firmy nebo jméno.",
   CHYBI_OBOR: "Vyberte alespoň jeden obor.",
   CHYBI_KRAJ: "Vyberte alespoň jeden kraj.",

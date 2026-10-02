@@ -2,6 +2,7 @@ import Link from "next/link";
 import { createAdminClient, createClient } from "@/lib/supabase";
 import { requireMe } from "@/lib/session";
 import { getPaymentStatus } from "@/lib/comgate";
+import { afterPaymentConfirmed } from "@/lib/billing";
 
 export const metadata = { title: "Výsledek platby" };
 
@@ -32,11 +33,14 @@ export default async function PaymentResult({ searchParams }: { searchParams: Pr
     }
   }
 
+  // Fakturu dovystavit i tehdy, když platbu potvrdila už notifikace (je to bezpečné opakovat)
+  if (p?.status === "paid") await afterPaymentConfirmed(p.id);
+
   return (
     <main className="container" style={{ maxWidth: 560 }}>
       <div className="card">
         {!p && <><h1>Platba nenalezena</h1><p className="muted">Pokud jste platili, kredity se připíšou během pár minut.</p></>}
-        {p?.status === "paid" && <><h1>Děkujeme, zaplaceno ✓</h1><p>Na váš účet jsme připsali <strong>{p.credits} kreditů</strong>.</p></>}
+        {p?.status === "paid" && <><h1>Děkujeme, zaplaceno ✓</h1><p>Na váš účet jsme připsali <strong>{p.credits} kreditů</strong>. Fakturu najdete v sekci Kredity a přijde vám i e-mailem.</p></>}
         {p?.status === "pending" && <><h1>Platba se zpracovává</h1><p className="muted">Kredity se připíšou automaticky, jakmile banka platbu potvrdí. U převodu to může trvat déle.</p></>}
         {(p?.status === "cancelled" || p?.status === "failed") && <><h1>Platba neproběhla</h1><p className="muted">Nic jsme vám nestrhli. Můžete to zkusit znovu.</p></>}
         <div className="row" style={{ marginTop: 16 }}>

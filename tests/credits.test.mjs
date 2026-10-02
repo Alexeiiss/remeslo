@@ -7,7 +7,7 @@ const SQL = fs.readFileSync(new URL("../supabase/migrations/001_schema.sql", imp
 await db.exec(`
   create role anon; create role authenticated;
   create schema auth;
-  create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb);
+  create table auth.users (id uuid primary key, email text, raw_user_meta_data jsonb, phone text, phone_confirmed_at timestamptz);
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   grant usage on schema auth to authenticated, anon;
@@ -22,6 +22,7 @@ await db.exec(fs.readFileSync(new URL("../supabase/migrations/006_ico_ares.sql",
 await db.exec(fs.readFileSync(new URL("../supabase/migrations/007_request_files.sql", import.meta.url), "utf8")
   .split("\n").filter((l) => !l.includes("storage.buckets")).join("\n"));
 await db.exec(fs.readFileSync(new URL("../supabase/migrations/008_notifications.sql", import.meta.url), "utf8"));
+await db.exec(fs.readFileSync(new URL("../supabase/migrations/010_sms_invoices.sql", import.meta.url), "utf8"));
 await db.exec(`
   grant usage on schema public to authenticated;
   grant select, insert, update, delete on all tables in schema public to authenticated; grant usage on all sequences in schema public to authenticated;
@@ -287,6 +288,22 @@ ok(await unread(P3, R9) >= 1 && (await one(`select count(*)::int n from notifica
 ok((await one(`select count(*)::int n from notifications where user_id=$1 and request_id=$2 and kind='closed'`, [P4, R9])).n === 1, "nevybraný řemeslník dostal upozornění o uzavření");
 await as(P4); await db.query(`select mark_all_seen()`);
 ok(await unread(P4) === 0, "označit vše jako přečtené");
+
+console.log("\n19) SMS ověření telefonu");
+await as(C);
+ok((await one(`select verify_my_phone() v`)).v === false, "bez potvrzení SMS kódem se telefon neověří");
+await db.query(`update auth.users set phone='420777000001', phone_confirmed_at=now() where id=$1`, [C]);
+ok((await one(`select verify_my_phone() v`)).v === true && (await one(`select phone_verified from profiles where id=$1`, [C])).phone_verified, "po potvrzení SMS je telefon ověřený");
+await as(C2);
+await db.query(`select update_my_profile('Zákazník 2', '+420 777 999 888')`);
+await db.query(`update settings set value='1' where key='require_phone_verification'`);
+await expectErr(() => db.query(`select create_request($1,$2,'Liberec','Test poptávky ověření','Potřebuji něco opravit, delší popis práce.','small',null)`, [elektro, liberec]),
+  "TELEFON_NEOVEREN", "se zapnutým ověřováním nejde zadat poptávku s neověřeným telefonem");
+await as(C);
+ok(!!(await one(`select create_request($1,$2,'Liberec','Test poptávky ověření','Potřebuji něco opravit, delší popis práce.','small',null) id`, [elektro, liberec])).id, "s ověřeným telefonem poptávka projde");
+await db.query(`update settings set value='0' where key='require_phone_verification'`);
+await as(C2);
+ok(!!(await one(`select create_request($1,$2,'Liberec','Test poptávky ověření','Potřebuji něco opravit, delší popis práce.','small',null) id`, [elektro, liberec])).id, "s vypnutým ověřováním projde i neověřený telefon");
 
 console.log(`\nVýsledek: ${pass} OK, ${fail} chyb`);
 process.exit(fail ? 1 : 0);

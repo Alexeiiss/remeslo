@@ -46,7 +46,7 @@ export default async function CreditsPage({ searchParams }: { searchParams: SP }
     supabase.from("credit_packages").select("*").order("sort_order"),
     supabase.from("credit_ledger").select("id, kind, amount, note, created_at, offers(credits_cost)")
       .eq("provider_id", me.id).order("created_at", { ascending: false }).limit(100),
-    supabase.from("payments").select("id, price_czk, credits, status, paid_at, created_at")
+    supabase.from("payments").select("id, price_czk, credits, status, paid_at, created_at, invoice_number, invoice_url")
       .eq("provider_id", me.id).eq("status", "paid").order("created_at", { ascending: false }),
   ]);
 
@@ -106,14 +106,16 @@ export default async function CreditsPage({ searchParams }: { searchParams: SP }
           <h2>Zaplacené objednávky</h2>
           <div className="card table-wrap">
             <table>
-              <thead><tr><th>Datum</th><th className="num">Kredity</th><th className="num">Částka</th></tr></thead>
+              <thead><tr><th>Datum</th><th className="num">Kredity</th><th className="num">Částka</th><th>Faktura</th></tr></thead>
               <tbody>
                 {payments.map((p) => (
-                  <tr key={p.id}><td>{dateTime(p.paid_at ?? p.created_at)}</td><td className="num">{p.credits}</td><td className="num">{czk(p.price_czk)}</td></tr>
+                  <tr key={p.id}>
+                    <td>{dateTime(p.paid_at ?? p.created_at)}</td><td className="num">{p.credits}</td><td className="num">{czk(p.price_czk)}</td>
+                    <td>{p.invoice_url ? <a href={p.invoice_url} target="_blank" rel="noreferrer">{p.invoice_number}</a> : <span className="muted small">–</span>}</td>
+                  </tr>
                 ))}
               </tbody>
             </table>
-            <p className="small muted" style={{ marginTop: 8 }}>Faktury: doplní se napojením na Fakturoid (fáze 2).</p>
           </div>
         </section>
       )}
