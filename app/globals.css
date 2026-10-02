@@ -148,3 +148,5 @@ td.num, th.num { text-align: right; white-space: nowrap; }
 .notif.unread { background: #fff8ef; }
 .notif .dot { width: 9px; height: 9px; border-radius: 50%; background: #d93a2b; margin-top: 7px; flex-shrink: 0; }
 .notif .dot.read { background: transparent; }
+@keyframes bell-ring { 0%,100% { transform: rotate(0) } 20% { transform: rotate(-18deg) } 40% { transform: rotate(14deg) } 60% { transform: rotate(-8deg) } 80% { transform: rotate(4deg) } }
+.nav a.bell-pulse { animation: bell-ring 0.9s ease-in-out 1; transform-origin: 50% 10%; }

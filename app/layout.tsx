@@ -4,6 +4,7 @@ import "./globals.css";
 import { SITE_NAME } from "@/lib/config";
 import { getMe } from "@/lib/session";
 import { createClient } from "@/lib/supabase";
+import Bell from "@/components/Bell";
 import { signOut } from "./prihlaseni/actions";
 
 export const metadata: Metadata = {
@@ -54,9 +55,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {me && me.role === "admin" && <Link href="/admin">Admin</Link>}
               {me && (
                 <>
-                  <Link href="/upozorneni" className="bell" title="Upozornění" aria-label={`Upozornění: ${unread} nových`}>
-                    🔔{unread > 0 && <span className="bell-count">{unread > 99 ? "99+" : unread}</span>}
-                  </Link>
+                  <Bell userId={me.id} initial={unread} />
                   <Link href="/ucet">Účet</Link>
                   <form action={signOut}><button className="link" type="submit">Odhlásit</button></form>
                 </>
