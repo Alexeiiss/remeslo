@@ -102,3 +102,51 @@ export async function cancelRequest(formData: FormData) {
   revalidatePath("/moje-poptavky");
   redirect("/moje-poptavky?zrusena=1");
 }
+
+const REVIEW_ERRORS: Record<string, string> = {
+  NELZE_HODNOTIT: "Hodnotit lze až po výběru řemeslníka.",
+  SPATNE_HODNOCENI: "Vyberte počet hvězdiček (1–5).",
+  UZ_HODNOCENO: "Tuto zakázku už jste ohodnotili.",
+  NENI_VASE_HODNOCENI: "Na toto hodnocení nemůžete odpovědět.",
+  UZ_ODPOVEZENO: "Na hodnocení už jste odpověděli.",
+  PRAZDNA_ODPOVED: "Napište text odpovědi.",
+};
+const reviewError = (msg: string) =>
+  Object.entries(REVIEW_ERRORS).find(([code]) => msg.includes(code))?.[1] ?? humanError(msg);
+
+/** Zákazník ohodnotí vybraného řemeslníka */
+export async function submitReview(formData: FormData) {
+  const requestId = String(formData.get("request_id"));
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("submit_review", {
+    p_request_id: requestId,
+    p_rating: Number(formData.get("rating")),
+    p_comment: maskContacts(String(formData.get("comment") || "")),
+  });
+  if (error) back(requestId, reviewError(error.message));
+
+  const a = admin();
+  if (a) {
+    const { data: r } = await a.from("job_requests").select("title, offers!job_requests_selected_offer_fk(provider_id)").eq("id", requestId).single();
+    const providerId = (r?.offers as unknown as { provider_id: string } | null)?.provider_id;
+    if (providerId) {
+      await sendEmail(await emailOf(providerId), `Nové hodnocení: ${r?.title}`,
+        `Zákazník vás ohodnotil ${Number(formData.get("rating"))}/5. Na hodnocení můžete odpovědět zde:\n${SITE_URL}/poptavka/${requestId}`);
+    }
+  }
+  revalidatePath(`/poptavka/${requestId}`);
+  back(requestId, "Děkujeme za hodnocení!", "ok");
+}
+
+/** Řemeslník odpoví na hodnocení */
+export async function replyReview(formData: FormData) {
+  const requestId = String(formData.get("request_id"));
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("reply_review", {
+    p_review_id: String(formData.get("review_id")),
+    p_reply: maskContacts(String(formData.get("reply") || "")),
+  });
+  if (error) back(requestId, reviewError(error.message));
+  revalidatePath(`/poptavka/${requestId}`);
+  back(requestId, "Odpověď uložena.", "ok");
+}
