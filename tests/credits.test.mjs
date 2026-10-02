@@ -17,6 +17,7 @@ await db.exec(SQL);
 await db.exec(fs.readFileSync(new URL("../supabase/migrations/003_reviews.sql", import.meta.url), "utf8"));
 await db.exec(fs.readFileSync(new URL("../supabase/migrations/004_phase2.sql", import.meta.url), "utf8")
   .split("-- ==================== STORAGE")[0]);
+await db.exec(fs.readFileSync(new URL("../supabase/migrations/005_avatar.sql", import.meta.url), "utf8"));
 await db.exec(`
   grant usage on schema public to authenticated;
   grant select, insert, update, delete on all tables in schema public to authenticated; grant usage on all sequences in schema public to authenticated;
@@ -236,6 +237,14 @@ ok(await avail(P3) === a3 - 200, `P3: propadlo jen 200 starých, nové zůstaly 
 ok(await avail(P1) === a1 - 50, `P1: z 200 starých utratil 150, propadlo jen 50 (${a1} → ${await avail(P1)})`);
 await db.query(`select expire_credits()`);
 ok(await avail(P1) === a1 - 50 && await avail(P2) === a2 - 200, "druhé spuštění už nic dalšího nestrhne");
+
+console.log("\n16) Profilová fotka");
+await as(P1);
+ok((await one(`select set_my_avatar($1) old`, [`${P1}/avatar-1.jpg`])).old === null, "řemeslník si nastavil fotku");
+ok((await one(`select set_my_avatar($1) old`, [`${P1}/avatar-2.jpg`])).old === `${P1}/avatar-1.jpg`, "výměna fotky vrátí starou (ke smazání)");
+await expectErr(() => db.query(`select set_my_avatar($1)`, [`${P2}/cizi.jpg`]), "SPATNA_CESTA", "nejde nastavit fotku z cizí složky");
+await as(C);
+await expectErr(() => db.query(`select set_my_avatar($1)`, [`${C}/a.jpg`]), "NEJSTE_REMESLNIK", "zákazník bez profilu fotku nastavit nemůže");
 
 console.log(`\nVýsledek: ${pass} OK, ${fail} chyb`);
 process.exit(fail ? 1 : 0);

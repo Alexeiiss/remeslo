@@ -1,5 +1,7 @@
 import Link from "next/link";
 import PhotoUploader from "@/components/PhotoUploader";
+import AvatarUploader from "@/components/AvatarUploader";
+import { avatarUrl } from "@/components/Avatar";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase";
@@ -72,6 +74,13 @@ export default async function ProviderProfile({ searchParams }: { searchParams: 
       {!profile && <div className="alert info">Po uložení profilu dostanete <strong>{String(bonus?.value ?? 200)} kreditů zdarma</strong> a uvidíte poptávky ve svých oborech.</div>}
       {sp.chyba && <div className="alert error">{sp.chyba}</div>}
       {sp.ok && <div className="alert ok">Profil uložen.</div>}
+
+      {profile && (
+        <section className="card" style={{ marginBottom: 16 }}>
+          <h2>Profilová fotka</h2>
+          <AvatarUploader userId={me.id} name={profile.company_name} currentUrl={avatarUrl(profile.avatar_path)} />
+        </section>
+      )}
 
       <form action={saveProfile} className="card">
         <div className="grid grid-2">

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { createPublicClient } from "@/lib/supabase";
+import Avatar, { avatarUrl } from "./Avatar";
 
 /** Seznam řemeslníků v oboru (a volitelně kraji), seřazený podle hodnocení */
 export default async function ProviderList({ categoryId, regionId, title }: {
@@ -21,7 +22,7 @@ export default async function ProviderList({ categoryId, regionId, title }: {
     );
   }
   const { data: providers } = await db.from("provider_profiles")
-    .select("user_id, company_name, city, rating_avg, rating_count, description")
+    .select("user_id, company_name, city, rating_avg, rating_count, description, avatar_path")
     .in("user_id", ids.slice(0, 200))
     .order("rating_count", { ascending: false })
     .order("rating_avg", { ascending: false, nullsFirst: false })
@@ -31,7 +32,9 @@ export default async function ProviderList({ categoryId, regionId, title }: {
     <section className="stack">
       <h2>{title}</h2>
       {providers?.map((p) => (
-        <Link key={p.user_id} href={`/firma/${p.user_id}`} className="card" style={{ display: "block", textDecoration: "none", color: "inherit" }}>
+        <Link key={p.user_id} href={`/firma/${p.user_id}`} className="card" style={{ display: "flex", gap: 14, textDecoration: "none", color: "inherit" }}>
+          <Avatar url={avatarUrl(p.avatar_path)} name={p.company_name} size={56} />
+          <div style={{ flex: 1, minWidth: 0 }}>
           <div className="row between">
             <strong>{p.company_name}</strong>
             <span className="small">
@@ -42,6 +45,7 @@ export default async function ProviderList({ categoryId, regionId, title }: {
           </div>
           {p.city && <div className="small muted">{p.city}</div>}
           {p.description && <p className="small" style={{ margin: "6px 0 0" }}>{p.description.slice(0, 160)}{p.description.length > 160 ? "…" : ""}</p>}
+          </div>
         </Link>
       ))}
     </section>

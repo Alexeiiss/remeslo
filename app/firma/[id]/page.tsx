@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase";
 import { date, SITE_NAME } from "@/lib/config";
+import Avatar, { avatarUrl } from "@/components/Avatar";
 
 export const revalidate = 600;
 
@@ -14,7 +15,7 @@ async function load(id: string) {
   if (!UUID.test(id)) return null;
   const db = createPublicClient();
   const { data: p } = await db.from("provider_profiles")
-    .select("user_id, company_name, ico, description, city, rating_avg, rating_count, created_at")
+    .select("user_id, company_name, ico, description, city, rating_avg, rating_count, created_at, avatar_path")
     .eq("user_id", id).maybeSingle();
   if (!p) return null;
   const [{ data: cats }, { data: regs }, { data: photos }, { data: reviews }] = await Promise.all([
@@ -53,9 +54,14 @@ export default async function ProviderPublicPage({ params }: Props) {
   return (
     <main className="container stack" style={{ maxWidth: 900 }}>
       <div className="card">
-        <h1 style={{ marginBottom: 4 }}>{p.company_name}</h1>
-        <div className="muted">
-          {p.city}{p.ico && ` · IČO ${p.ico}`} · na webu od {date(p.created_at)}
+        <div className="row" style={{ gap: 18, alignItems: "flex-start", flexWrap: "nowrap" }}>
+          <Avatar url={avatarUrl(p.avatar_path)} name={p.company_name} size={96} />
+          <div>
+            <h1 style={{ marginBottom: 4 }}>{p.company_name}</h1>
+            <div className="muted">
+              {p.city}{p.ico && ` · IČO ${p.ico}`} · na webu od {date(p.created_at)}
+            </div>
+          </div>
         </div>
         <div style={{ marginTop: 10, fontSize: "1.1rem" }}>
           {p.rating_count

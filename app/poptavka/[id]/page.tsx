@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase";
 import { requireMe } from "@/lib/session";
 import ConfirmButton from "@/components/ConfirmButton";
 import PhotoUploader from "@/components/PhotoUploader";
+import Avatar, { avatarUrl } from "@/components/Avatar";
 import {
   czk, date, dateTime, JOB_SIZE_LABEL, OFFER_STATUS_LABEL, REQUEST_STATUS_LABEL,
 } from "@/lib/config";
@@ -183,7 +184,7 @@ async function CustomerView({ request: r, review, meId }: { request: any; review
   const supabase = await createClient();
   const { data: offers } = await supabase
     .from("offers")
-    .select("id, provider_id, price_czk, start_date, message, status, created_at, provider_profiles(company_name, city, rating_avg, rating_count, ico)")
+    .select("id, provider_id, price_czk, start_date, message, status, created_at, provider_profiles(company_name, city, rating_avg, rating_count, ico, avatar_path)")
     .eq("request_id", r.id)
     .neq("status", "withdrawn")
     .order("price_czk");
@@ -230,15 +231,18 @@ async function CustomerView({ request: r, review, meId }: { request: any; review
         <div className="card muted">Zatím žádná nabídka. Řemeslníci obvykle reagují během 1–2 dnů. Dáme vám vědět e-mailem.</div>
       )}
       {offers?.map((o) => {
-        const p = o.provider_profiles as unknown as { company_name: string; city: string | null; rating_avg: number | null; rating_count: number; ico: string | null };
+        const p = o.provider_profiles as unknown as { company_name: string; city: string | null; rating_avg: number | null; rating_count: number; ico: string | null; avatar_path: string | null };
         return (
           <div key={o.id} className="card">
             <div className="row between">
-              <div>
+              <div className="row" style={{ gap: 12, flexWrap: "nowrap" }}>
+                <Link href={`/firma/${o.provider_id}`}><Avatar url={avatarUrl(p.avatar_path)} name={p.company_name} size={52} /></Link>
+                <div>
                 <h3 style={{ margin: 0 }}><Link href={`/firma/${o.provider_id}`} style={{ color: "inherit" }}>{p.company_name}</Link></h3>
                 <div className="small muted">
                   {p.city}{p.ico && ` · IČO ${p.ico}`} ·{" "}
                   {p.rating_count ? `★ ${Number(p.rating_avg).toFixed(1)} (${p.rating_count})` : "zatím bez hodnocení"}
+                </div>
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>

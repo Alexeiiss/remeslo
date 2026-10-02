@@ -19,7 +19,7 @@ vybranému se strhnou, ostatním se vrátí.
 | Denní úloha (vypršení, připomínky) | ✅ Vercel Cron |
 | Hodnocení řemeslníků a odpovědi | ✅ fáze 2 |
 | Zprávy zákazník ↔ řemeslník (kontakty skryté do výběru) | ✅ fáze 2 |
-| Veřejný profil řemeslníka s fotkami prací (`/firma/…`) | ✅ fáze 2 |
+| Veřejný profil řemeslníka s profilovou fotkou a fotkami prací (`/firma/…`) | ✅ fáze 2 |
 | SEO stránky obor × kraj (`/remeslnici/elektrikar/liberecky`), sitemap | ✅ fáze 2 |
 | Reklamace kreditů + administrace (`/admin`) | ✅ fáze 2 |
 | Expirace kreditů po 12 měsících | ✅ fáze 2 |
@@ -41,7 +41,7 @@ Pak se v menu objeví odkaz **Admin**.
 ### 1. Supabase (databáze, přihlašování, fotky)
 1. Založte projekt na [supabase.com](https://supabase.com) (region Frankfurt).
 2. **SQL Editor** → vložte celý soubor `supabase/migrations/001_schema.sql` → **Run**.
-3. Totéž postupně se soubory `002_storage.sql`, `003_reviews.sql` a `004_phase2.sql`.
+3. Totéž postupně se soubory `002_storage.sql`, `003_reviews.sql`, `004_phase2.sql` a `005_avatar.sql`.
 4. **Authentication → URL Configuration:**
    - Site URL: `https://vasedomena.cz` (pro vývoj `http://localhost:3000`)
    - Redirect URLs: přidejte `https://vasedomena.cz/auth/callback` a `http://localhost:3000/auth/callback`
@@ -91,7 +91,7 @@ Každý pohyb je řádek v tabulce `credit_ledger` (nic se nepřepisuje ani nema
 Veškerá logika je v databázových funkcích (`place_offer`, `select_offer`, `cancel_request`,
 `expire_requests`, `confirm_payment`) a běží v transakcích – web nemůže kredity změnit napřímo.
 
-Test logiky: `npm run test:db` (spustí databázi v paměti a projde 64 scénářů).
+Test logiky: `npm run test:db` (spustí databázi v paměti a projde 68 scénářů).
 
 ## Struktura
 ```
