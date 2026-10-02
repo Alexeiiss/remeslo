@@ -62,6 +62,7 @@ const ERRORS: Record<string, string> = {
   REKLAMACE_NEEXISTUJE: "Reklamace neexistuje.",
   REKLAMACE_VYRIZENA: "Reklamace už je vyřízená.",
   JEN_ADMIN: "Tato akce je jen pro administrátora.",
+  ICO_UZ_REGISTROVANO: "Toto IČO už používá jiný řemeslnický účet. Pokud je vaše, kontaktujte nás.",
 };
 
 export function humanError(message?: string | null): string {

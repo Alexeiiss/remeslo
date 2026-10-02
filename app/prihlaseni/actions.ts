@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { SITE_URL } from "@/lib/config";
+import { isValidIco, lookupIco } from "@/lib/ares";
 
 const safeNext = (v: FormDataEntryValue | null) => {
   const s = String(v || "");
@@ -33,6 +34,19 @@ export async function signUp(formData: FormData) {
 
   if (password.length < 8) redirect(`${back}&chyba=${encodeURIComponent("Heslo musí mít aspoň 8 znaků.")}`);
 
+  // Řemeslník musí mít platné IČO, ověříme ho v ARES
+  let company: Awaited<ReturnType<typeof lookupIco>> = null;
+  if (isProvider) {
+    const ico = String(formData.get("ico") || "").replace(/\s/g, "");
+    if (!isValidIco(ico)) redirect(`${back}&chyba=${encodeURIComponent("Zadejte platné IČO (8 číslic).")}`);
+    try {
+      company = await lookupIco(ico);
+    } catch {
+      company = null; // ARES nedostupný – registraci nezablokujeme, IČO se uloží tak, jak bylo zadáno
+    }
+    if (company && !company.active) redirect(`${back}&chyba=${encodeURIComponent("Subjekt s tímto IČO podle ARES zanikl.")}`);
+  }
+
   const { data, error } = await supabase.auth.signUp({
     email: String(formData.get("email")).trim(),
     password,
@@ -40,12 +54,25 @@ export async function signUp(formData: FormData) {
       data: {
         full_name: String(formData.get("full_name") || "").trim(),
         phone: String(formData.get("phone") || "").trim() || null,
+        ...(isProvider && {
+          ico: company?.ico ?? String(formData.get("ico") || "").replace(/\s/g, ""),
+          company_name: String(formData.get("company_name") || "").trim() || company?.name,
+          address: String(formData.get("address") || "").trim() || company?.address,
+          city: company?.city ?? String(formData.get("city") || ""),
+          region_name: company?.regionName ?? null,
+        }),
       },
       emailRedirectTo: `${SITE_URL}/auth/callback?dalsi=${encodeURIComponent(next)}`,
     },
   });
   if (error) {
-    const msg = error.message.includes("registered") ? "Tento e-mail už je zaregistrovaný." : "Registrace se nepovedla. Zkuste to znovu.";
+    const m = error.message.toLowerCase();
+    const msg = m.includes("registered") ? "Tento e-mail už je zaregistrovaný. Zkuste se přihlásit."
+      : m.includes("rate limit") ? "Příliš mnoho registrací za krátkou dobu. Zkuste to prosím za chvíli."
+      : m.includes("signups") && m.includes("disabled") ? "Registrace je dočasně vypnutá."
+      : m.includes("password") ? "Heslo je příliš slabé, zvolte delší nebo složitější."
+      : m.includes("email") && m.includes("invalid") ? "E-mail nemá správný tvar."
+      : "Registrace se nepovedla. Zkuste to znovu.";
     redirect(`${back}&chyba=${encodeURIComponent(msg)}`);
   }
   // Pokud je v Supabase zapnuté potvrzení e-mailu, session ještě není

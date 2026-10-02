@@ -18,6 +18,7 @@ await db.exec(fs.readFileSync(new URL("../supabase/migrations/003_reviews.sql", 
 await db.exec(fs.readFileSync(new URL("../supabase/migrations/004_phase2.sql", import.meta.url), "utf8")
   .split("-- ==================== STORAGE")[0]);
 await db.exec(fs.readFileSync(new URL("../supabase/migrations/005_avatar.sql", import.meta.url), "utf8"));
+await db.exec(fs.readFileSync(new URL("../supabase/migrations/006_ico_ares.sql", import.meta.url), "utf8"));
 await db.exec(`
   grant usage on schema public to authenticated;
   grant select, insert, update, delete on all tables in schema public to authenticated; grant usage on all sequences in schema public to authenticated;
@@ -51,7 +52,7 @@ const liberec = (await one(`select id from regions where slug='liberecky'`)).id;
 console.log("\n1) Registrace řemeslníků");
 for (const p of [P1, P2, P3, P4, P5]) {
   await as(p);
-  await db.query(`select upsert_provider_profile($1,'06917127','Popis','Liberec',$2,$3)`,
+  await db.query(`select upsert_provider_profile($1,null,'Popis','Liberec',$2,$3)`,
     ["Firma " + p.slice(-1), [elektro], [liberec]]);
 }
 await as(PX);
@@ -245,6 +246,18 @@ ok((await one(`select set_my_avatar($1) old`, [`${P1}/avatar-2.jpg`])).old === `
 await expectErr(() => db.query(`select set_my_avatar($1)`, [`${P2}/cizi.jpg`]), "SPATNA_CESTA", "nejde nastavit fotku z cizí složky");
 await as(C);
 await expectErr(() => db.query(`select set_my_avatar($1)`, [`${C}/a.jpg`]), "NEJSTE_REMESLNIK", "zákazník bez profilu fotku nastavit nemůže");
+
+console.log("\n17) IČO");
+await as(P1);
+await db.query(`select upsert_provider_profile('Alexandru Badasco','0691 7127','Popis','Liberec',$1,$2,'Na Františku 106/4, 46010 Liberec')`, [[elektro], [liberec]]);
+const pp1 = await one(`select ico, address from provider_profiles where user_id=$1`, [P1]);
+ok(pp1.ico === "06917127" && pp1.address.startsWith("Na Františku"), "IČO (bez mezer) a adresa uloženy");
+await as(P2);
+await expectErr(() => db.query(`select upsert_provider_profile('Jiná firma','06917127',null,'Liberec',$1,$2)`, [[elektro], [liberec]]),
+  "ICO_UZ_REGISTROVANO", "stejné IČO nejde použít pro druhý účet");
+await as(P1);
+await db.query(`select upsert_provider_profile('Alexandru Badasco','06917127','Nový popis','Liberec',$1,$2)`, [[elektro], [liberec]]);
+ok((await one(`select description from provider_profiles where user_id=$1`, [P1])).description === "Nový popis", "vlastní IČO jde při úpravě profilu ponechat");
 
 console.log(`\nVýsledek: ${pass} OK, ${fail} chyb`);
 process.exit(fail ? 1 : 0);

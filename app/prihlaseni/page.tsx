@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { signIn, signUp } from "./actions";
+import IcoLookup from "@/components/IcoLookup";
 
 export const metadata = { title: "Přihlášení" };
 
@@ -40,7 +41,15 @@ export default async function LoginPage({ searchParams }: { searchParams: SP }) 
           <form action={signUp}>
             <input type="hidden" name="typ" value={register} />
             <input type="hidden" name="dalsi" value={dalsi} />
-            <div className="field"><label>Jméno a příjmení</label><input type="text" name="full_name" required autoComplete="name" /></div>
+            {register === "remeslnik" && (
+              <>
+                <IcoLookup required />
+                <div className="field"><label>Název firmy / jméno podnikatele</label><input type="text" name="company_name" required /></div>
+                <div className="field"><label>Adresa sídla</label><input type="text" name="address" /></div>
+                <input type="hidden" name="city" />
+              </>
+            )}
+            <div className="field"><label>{register === "remeslnik" ? "Kontaktní osoba (jméno a příjmení)" : "Jméno a příjmení"}</label><input type="text" name="full_name" required autoComplete="name" /></div>
             <div className="field"><label>E-mail</label><input type="email" name="email" required autoComplete="email" /></div>
             <div className="field">
               <label>Telefon</label>
