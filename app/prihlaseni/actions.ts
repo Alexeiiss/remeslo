@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { SITE_URL } from "@/lib/config";
 import { isValidIco, lookupIco } from "@/lib/ares";
+import { LEGAL_VALID_FROM } from "@/lib/legal";
 
 const safeNext = (v: FormDataEntryValue | null) => {
   const s = String(v || "");
@@ -33,6 +34,7 @@ export async function signUp(formData: FormData) {
   const back = `/prihlaseni?registrace=${isProvider ? "remeslnik" : "zakaznik"}&dalsi=${encodeURIComponent(next)}`;
 
   if (password.length < 8) redirect(`${back}&chyba=${encodeURIComponent("Heslo musí mít aspoň 8 znaků.")}`);
+  if (!formData.get("terms")) redirect(`${back}&chyba=${encodeURIComponent("Pro registraci je potřeba souhlasit s obchodními podmínkami.")}`);
 
   // Řemeslník musí mít platné IČO, ověříme ho v ARES
   let company: Awaited<ReturnType<typeof lookupIco>> = null;
@@ -54,6 +56,8 @@ export async function signUp(formData: FormData) {
       data: {
         full_name: String(formData.get("full_name") || "").trim(),
         phone: String(formData.get("phone") || "").trim() || null,
+        terms_accepted_at: new Date().toISOString(),
+        terms_version: LEGAL_VALID_FROM,
         ...(isProvider && {
           ico: company?.ico ?? String(formData.get("ico") || "").replace(/\s/g, ""),
           company_name: String(formData.get("company_name") || "").trim() || company?.name,

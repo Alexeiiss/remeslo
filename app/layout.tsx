@@ -5,6 +5,8 @@ import { SITE_NAME } from "@/lib/config";
 import { getMe } from "@/lib/session";
 import { createClient } from "@/lib/supabase";
 import Bell from "@/components/Bell";
+import { OPERATOR } from "@/lib/legal";
+import Logo from "@/components/Logo";
 import { signOut } from "./prihlaseni/actions";
 
 export const metadata: Metadata = {
@@ -27,8 +29,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <header className="header">
           <div className="container">
-            <Link href="/" className="logo">
-              {first}{rest.length > 0 && <span>.{rest.join(".")}</span>}
+            <Link href="/" className="logo" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Logo />
+              <span>{first}{rest.length > 0 && <span>.{rest.join(".")}</span>}</span>
             </Link>
             <nav className="nav">
               {!me && (
@@ -65,9 +68,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </header>
         {children}
         <footer className="footer">
-          <div className="container row between">
-            <span>© {new Date().getFullYear()} {SITE_NAME}</span>
-            <span className="row"><Link href="/remeslnici">Řemeslníci podle oboru</Link><Link href="/cenik">Ceník pro řemeslníky</Link></span>
+          <div className="container stack">
+            <div className="row between">
+              <span>© {new Date().getFullYear()} {SITE_NAME}</span>
+              <span className="row"><Link href="/remeslnici">Řemeslníci podle oboru</Link><Link href="/cenik">Ceník pro řemeslníky</Link></span>
+            </div>
+            <div className="row small" style={{ gap: 16 }}>
+              <Link href="/obchodni-podminky">Obchodní podmínky</Link>
+              <Link href="/ochrana-osobnich-udaju">Ochrana osobních údajů</Link>
+              <Link href="/cookies">Cookies</Link>
+              <span className="muted">Provozovatel: {OPERATOR.name}, IČO {OPERATOR.ico} · <a href={`mailto:${OPERATOR.email}`}>{OPERATOR.email}</a></span>
+            </div>
           </div>
         </footer>
       </body>

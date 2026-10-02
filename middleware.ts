@@ -28,7 +28,7 @@ export async function middleware(request: NextRequest) {
   if (!user && PROTECTED.some((p) => path.startsWith(p))) {
     const url = request.nextUrl.clone();
     url.pathname = "/prihlaseni";
-    url.search = `?dalsi=${encodeURIComponent(path)}`;
+    url.search = `?dalsi=${encodeURIComponent(path + request.nextUrl.search)}`;
     return NextResponse.redirect(url);
   }
   return response;

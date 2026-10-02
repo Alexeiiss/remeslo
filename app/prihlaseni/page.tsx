@@ -57,6 +57,15 @@ export default async function LoginPage({ searchParams }: { searchParams: SP }) 
               <div className="hint">Uvidí ho jen řemeslník / zákazník, se kterým se domluvíte.</div>
             </div>
             <div className="field"><label>Heslo</label><input type="password" name="password" required minLength={8} autoComplete="new-password" /><div className="hint">Aspoň 8 znaků.</div></div>
+            <div className="field">
+              <label style={{ fontWeight: 400, display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <input type="checkbox" name="terms" required style={{ marginTop: 4 }} />
+                <span className="small">
+                  Souhlasím s <Link href="/obchodni-podminky" target="_blank">obchodními podmínkami</Link> a beru na vědomí{" "}
+                  <Link href="/ochrana-osobnich-udaju" target="_blank">zásady ochrany osobních údajů</Link>.
+                </span>
+              </label>
+            </div>
             <button className="btn block">Zaregistrovat se</button>
           </form>
           <p className="small muted" style={{ marginTop: 16 }}>Už máte účet? <Link href="/prihlaseni">Přihlaste se</Link></p>
