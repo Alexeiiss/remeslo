@@ -34,6 +34,11 @@ export default async function ProviderDashboard() {
     .limit(50);
   const available = (open ?? []).filter((r) => !offeredIds.has(r.id) && r.offers_count < r.max_offers);
 
+  // Nepřečtená upozornění (nové poptávky, výběr, zprávy) – zvýrazní se v seznamech
+  const { data: news } = await supabase.from("notifications")
+    .select("request_id, kind").is("read_at", null).not("request_id", "is", null);
+  const unreadReq = new Set((news ?? []).map((n) => n.request_id));
+
   return (
     <main className="container stack">
       <div className="grid grid-3">
@@ -46,10 +51,13 @@ export default async function ProviderDashboard() {
         <h2>Nové poptávky ve vašich oborech a krajích</h2>
         {!available.length && <div className="card muted">Teď tu nic nového není. Nové poptávky vám pošleme e-mailem.</div>}
         {available.map((r) => (
-          <Link key={r.id} href={`/poptavka/${r.id}`} className="card" style={{ display: "block", textDecoration: "none", color: "inherit" }}>
+          <Link key={r.id} href={`/poptavka/${r.id}`} className={`card ${unreadReq.has(r.id) ? "has-news" : ""}`} style={{ display: "block", textDecoration: "none", color: "inherit" }}>
             <div className="row between">
               <strong>{r.title}</strong>
-              <span className="badge open">{r.offers_count}/{r.max_offers} nabídek</span>
+              <span className="row" style={{ gap: 6 }}>
+                {unreadReq.has(r.id) && <span className="news-badge">Nová</span>}
+                <span className="badge open">{r.offers_count}/{r.max_offers} nabídek</span>
+              </span>
             </div>
             <div className="small muted" style={{ marginTop: 4 }}>
               {(r.categories as unknown as { name: string })?.name} · {r.city}, {(r.regions as unknown as { name: string })?.name} · {JOB_SIZE_LABEL[r.size]} · {date(r.created_at)}
@@ -70,7 +78,11 @@ export default async function ProviderDashboard() {
                   const jr = o.job_requests as unknown as { id: string; title: string; city: string };
                   return (
                     <tr key={o.id}>
-                      <td><Link href={`/poptavka/${jr.id}`}>{jr.title}</Link><div className="small muted">{jr.city} · {date(o.created_at)}</div></td>
+                      <td>
+                        <Link href={`/poptavka/${jr.id}`} style={{ fontWeight: unreadReq.has(jr.id) ? 700 : 400 }}>{jr.title}</Link>
+                        {unreadReq.has(jr.id) && <> <span className="news-badge">novinka</span></>}
+                        <div className="small muted">{jr.city} · {date(o.created_at)}</div>
+                      </td>
                       <td className="num">{czk(o.price_czk)}</td>
                       <td><span className={`badge ${o.status}`}>{OFFER_STATUS_LABEL[o.status]}</span></td>
                       <td className="num">{o.credits_cost}</td>

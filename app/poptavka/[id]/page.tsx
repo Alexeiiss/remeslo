@@ -103,6 +103,9 @@ export default async function RequestPage({ params, searchParams }: Props) {
     .maybeSingle();
   if (!r) notFound();
 
+  // Otevřením poptávky se její upozornění označí jako přečtená
+  await supabase.rpc("mark_request_seen", { p_request_id: id });
+
   const isCustomer = r.customer_id === me.id;
   const { data: photoRows } = await supabase.from("request_photos")
     .select("storage_path, file_name, content_type, size_bytes").eq("request_id", id).order("created_at");

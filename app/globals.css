@@ -130,3 +130,21 @@ td.num, th.num { text-align: right; white-space: nowrap; }
 .photos img { width: 120px; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
 
 .footer { border-top: 1px solid var(--line); padding: 24px 0; color: var(--muted); font-size: 0.9rem; }
+
+/* Upozornění */
+.nav a.bell { position: relative; font-size: 1.1rem; }
+.bell-count {
+  position: absolute; top: 0; right: 0; transform: translate(35%, -10%);
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: #d93a2b; color: #fff; font-size: 0.72rem; font-weight: 700;
+  display: grid; place-items: center; line-height: 1;
+}
+.card.has-news { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(232, 145, 58, 0.25), var(--shadow); }
+.news-badge {
+  display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 0.8rem; font-weight: 700;
+  background: #d93a2b; color: #fff;
+}
+.notif { display: flex; gap: 12px; align-items: flex-start; text-decoration: none; color: inherit; }
+.notif.unread { background: #fff8ef; }
+.notif .dot { width: 9px; height: 9px; border-radius: 50%; background: #d93a2b; margin-top: 7px; flex-shrink: 0; }
+.notif .dot.read { background: transparent; }

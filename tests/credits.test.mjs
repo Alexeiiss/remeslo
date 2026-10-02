@@ -21,6 +21,7 @@ await db.exec(fs.readFileSync(new URL("../supabase/migrations/005_avatar.sql", i
 await db.exec(fs.readFileSync(new URL("../supabase/migrations/006_ico_ares.sql", import.meta.url), "utf8"));
 await db.exec(fs.readFileSync(new URL("../supabase/migrations/007_request_files.sql", import.meta.url), "utf8")
   .split("\n").filter((l) => !l.includes("storage.buckets")).join("\n"));
+await db.exec(fs.readFileSync(new URL("../supabase/migrations/008_notifications.sql", import.meta.url), "utf8"));
 await db.exec(`
   grant usage on schema public to authenticated;
   grant select, insert, update, delete on all tables in schema public to authenticated; grant usage on all sequences in schema public to authenticated;
@@ -260,6 +261,32 @@ await expectErr(() => db.query(`select upsert_provider_profile('Jiná firma','06
 await as(P1);
 await db.query(`select upsert_provider_profile('Alexandru Badasco','06917127','Nový popis','Liberec',$1,$2)`, [[elektro], [liberec]]);
 ok((await one(`select description from provider_profiles where user_id=$1`, [P1])).description === "Nový popis", "vlastní IČO jde při úpravě profilu ponechat");
+
+console.log("\n18) Upozornění");
+await db.exec(`grant select on notifications to authenticated`);
+const unread = async (uid, req) => (await one(`select count(*)::int n from notifications where user_id=$1 and read_at is null ${req ? "and request_id=$2" : ""}`, req ? [uid, req] : [uid])).n;
+await as(C);
+const R9 = (await one(`select create_request($1,$2,'Liberec','Osvětlení na zahradě','Potřebuji udělat osvětlení zahrady, 6 světel.','small',null) id`, [elektro, liberec])).id;
+ok(await unread(P3, R9) === 1 && await unread(P4, R9) === 1, "řemeslníci v oboru a kraji dostali upozornění na novou poptávku");
+ok(await unread(PX, R9) === 0, "instalatér upozornění nedostal");
+ok(await unread(C, R9) === 0, "zákazník nemá upozornění na vlastní poptávku");
+const O9 = await offer(P3, R9);
+ok(await unread(C, R9) === 1, "zákazník dostal upozornění na novou nabídku");
+await offer(P4, R9);
+ok(await unread(C, R9) === 2, "druhá nabídka = druhé upozornění");
+await as(P3); await db.query(`select send_message($1,$2,'Dobrý den, kolik metrů kabelu?')`, [R9, P3]);
+ok(await unread(C, R9) === 3, "zpráva od řemeslníka → upozornění zákazníkovi");
+await db.exec(`set role authenticated`);
+await as(C);
+ok((await db.query(`select * from notifications`)).rows.every(n => n.user_id === C), "každý vidí jen svoje upozornění");
+await db.exec(`reset role`);
+await as(C); await db.query(`select mark_request_seen($1)`, [R9]);
+ok(await unread(C, R9) === 0, "otevřením poptávky se upozornění přečtou");
+await db.query(`select select_offer($1)`, [O9]);
+ok(await unread(P3, R9) >= 1 && (await one(`select count(*)::int n from notifications where user_id=$1 and kind='selected'`, [P3])).n === 1, "vybraný řemeslník dostal upozornění");
+ok((await one(`select count(*)::int n from notifications where user_id=$1 and request_id=$2 and kind='closed'`, [P4, R9])).n === 1, "nevybraný řemeslník dostal upozornění o uzavření");
+await as(P4); await db.query(`select mark_all_seen()`);
+ok(await unread(P4) === 0, "označit vše jako přečtené");
 
 console.log(`\nVýsledek: ${pass} OK, ${fail} chyb`);
 process.exit(fail ? 1 : 0);

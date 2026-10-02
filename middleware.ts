@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Udržuje přihlášení (obnovuje token v cookies) a chrání soukromé stránky.
-const PROTECTED = ["/ucet", "/moje-poptavky", "/poptavka/nova", "/remeslnik", "/admin"];
+const PROTECTED = ["/ucet", "/moje-poptavky", "/poptavka/nova", "/remeslnik", "/admin", "/upozorneni"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
