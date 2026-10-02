@@ -40,10 +40,7 @@ export default async function NewRequestPage({ searchParams }: { searchParams: S
           <label>Popis práce</label>
           <textarea name="description" required minLength={20} maxLength={5000} placeholder="Co přesně je potřeba udělat, rozměry, materiál, stav…" />
         </div>
-        <div className="field">
-          <label>Fotky <span className="hint">(nepovinné, max. 6 × 2 MB)</span></label>
-          <input type="file" name="photos" accept="image/*" multiple />
-        </div>
+        <div className="hint" style={{ marginBottom: 16 }}>Fotky přidáte hned v dalším kroku, po odeslání poptávky.</div>
 
         <h2 style={{ marginTop: 24 }}>2. Kde a kdy</h2>
         <div className="grid grid-2">

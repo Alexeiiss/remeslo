@@ -30,6 +30,7 @@ export const LEDGER_LABEL: Record<string, string> = {
   release: "Vráceno",
   refund: "Vráceno (reklamace)",
   adjust: "Úprava",
+  expire: "Propadlo",
 };
 
 /** Kódy chyb z databáze → srozumitelná česká hláška */
@@ -51,6 +52,16 @@ const ERRORS: Record<string, string> = {
   NABIDKU_NELZE_STAHNOUT: "Nabídku už nelze stáhnout.",
   NENI_VASE_POPTAVKA: "Tato poptávka vám nepatří.",
   NABIDKA_NENI_AKTIVNI: "Nabídka už není aktivní.",
+  NENI_VASE_VLAKNO: "Do této konverzace nemůžete psát.",
+  VLAKNO_UZAVRENO: "Konverzace je uzavřená, nabídka už není aktivní.",
+  PRAZDNA_ZPRAVA: "Napište text zprávy.",
+  REKLAMACE_NELZE: "Reklamovat lze jen získanou zakázku.",
+  REKLAMACE_PO_LHUTE: "Lhůta pro reklamaci (30 dnů) už uplynula.",
+  REKLAMACE_UZ_EXISTUJE: "Reklamaci k této zakázce už jste podali.",
+  REKLAMACE_KRATKY_DUVOD: "Popište důvod reklamace (aspoň 10 znaků).",
+  REKLAMACE_NEEXISTUJE: "Reklamace neexistuje.",
+  REKLAMACE_VYRIZENA: "Reklamace už je vyřízená.",
+  JEN_ADMIN: "Tato akce je jen pro administrátora.",
 };
 
 export function humanError(message?: string | null): string {

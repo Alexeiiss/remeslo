@@ -15,6 +15,10 @@ export async function GET(request: NextRequest) {
   const { data: expired, error } = await admin.rpc("expire_requests");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Kredity starší než 12 měsíců propadnou
+  const { data: creditsExpired, error: expErr } = await admin.rpc("expire_credits");
+  if (expErr) console.error("[cron] expire_credits", expErr.message);
+
   const { data: days } = await admin.from("settings").select("value").eq("key", "reminder_after_days").single();
   const cutoff = new Date(Date.now() - Number(days?.value ?? 14) * 86400_000).toISOString();
   const { data: toRemind } = await admin
@@ -29,5 +33,5 @@ export async function GET(request: NextRequest) {
     await admin.from("job_requests").update({ reminder_sent_at: new Date().toISOString() }).eq("id", r.id);
   }
 
-  return NextResponse.json({ expired, reminded: toRemind?.length ?? 0 });
+  return NextResponse.json({ expired, creditsExpired, reminded: toRemind?.length ?? 0 });
 }

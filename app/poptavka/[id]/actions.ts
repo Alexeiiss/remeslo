@@ -103,6 +103,47 @@ export async function cancelRequest(formData: FormData) {
   redirect("/moje-poptavky?zrusena=1");
 }
 
+/** Zpráva ve vlákně (poptávka + řemeslník). Kontakty skrývá databáze, dokud není vybráno. */
+export async function sendMessage(formData: FormData) {
+  const requestId = String(formData.get("request_id"));
+  const providerId = String(formData.get("provider_id"));
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { error } = await supabase.rpc("send_message", {
+    p_request_id: requestId,
+    p_provider_id: providerId,
+    p_body: String(formData.get("body") || ""),
+  });
+  if (error) back(requestId, humanError(error.message));
+
+  // Upozornit druhou stranu e-mailem
+  const a = admin();
+  if (a && user) {
+    const { data: r } = await a.from("job_requests").select("title, customer_id").eq("id", requestId).single();
+    if (r) {
+      const toCustomer = user.id !== r.customer_id;
+      await sendEmail(await emailOf(toCustomer ? r.customer_id : providerId),
+        `Nová zpráva: ${r.title}`,
+        `${toCustomer ? "Řemeslník" : "Zákazník"} vám poslal zprávu k poptávce „${r.title}“.\n\nPřečíst a odpovědět:\n${SITE_URL}/poptavka/${requestId}#zpravy-${providerId}`);
+    }
+  }
+  revalidatePath(`/poptavka/${requestId}`);
+  redirect(`/poptavka/${requestId}?zprava=1#zpravy-${providerId}`);
+}
+
+/** Vybraný řemeslník podá reklamaci (o vrácení kreditů rozhodne admin) */
+export async function openDispute(formData: FormData) {
+  const requestId = String(formData.get("request_id"));
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("open_dispute", {
+    p_offer_id: String(formData.get("offer_id")),
+    p_reason: String(formData.get("reason") || ""),
+  });
+  if (error) back(requestId, humanError(error.message));
+  revalidatePath(`/poptavka/${requestId}`);
+  back(requestId, "Reklamace odeslána. O výsledku vám dáme vědět e-mailem.", "ok");
+}
+
 const REVIEW_ERRORS: Record<string, string> = {
   NELZE_HODNOTIT: "Hodnotit lze až po výběru řemeslníka.",
   SPATNE_HODNOCENI: "Vyberte počet hvězdiček (1–5).",

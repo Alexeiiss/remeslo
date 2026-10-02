@@ -12,22 +12,36 @@ vybranému se strhnou, ostatním se vrátí.
 | Řemeslnický profil, obory, kraje, uvítací kredity | ✅ |
 | Zadání poptávky s fotkami | ✅ |
 | Max. 4 nabídky, kontakt skrytý do výběru | ✅ |
-| Blokace → stržení vybranému → vrácení ostatním | ✅ otestováno (38 testů) |
+| Blokace → stržení vybranému → vrácení ostatním | ✅ otestováno |
 | Stažení nabídky, zrušení poptávky, vypršení po 30 dnech | ✅ |
 | Nákup kreditů přes Comgate | ✅ (ověřit v testovacím režimu) |
 | E-maily (nová poptávka, nová nabídka, výběr, připomínka) | ✅ přes Resend |
 | Denní úloha (vypršení, připomínky) | ✅ Vercel Cron |
+| Hodnocení řemeslníků a odpovědi | ✅ fáze 2 |
+| Zprávy zákazník ↔ řemeslník (kontakty skryté do výběru) | ✅ fáze 2 |
+| Veřejný profil řemeslníka s fotkami prací (`/firma/…`) | ✅ fáze 2 |
+| SEO stránky obor × kraj (`/remeslnici/elektrikar/liberecky`), sitemap | ✅ fáze 2 |
+| Reklamace kreditů + administrace (`/admin`) | ✅ fáze 2 |
+| Expirace kreditů po 12 měsících | ✅ fáze 2 |
 
-**Fáze 2 (zatím chybí):** hodnocení, zprávy mezi zákazníkem a řemeslníkem, SEO stránky
-„elektrikář Liberec“, faktury přes Fakturoid, SMS ověření telefonu, expirace kreditů po 12 měsících,
-reklamace, administrace.
+**Zbývá:** SMS ověření telefonu (potřebuje účet u SMS brány), faktury přes Fakturoid, ostrý Comgate,
+e-maily z vlastní domény, obchodní podmínky a GDPR.
+
+### Jak se stát administrátorem
+V Supabase → SQL Editor spusťte (s vaším e-mailem):
+```sql
+update profiles set role = 'admin' where email = 'vas@email.cz';
+```
+Pak se v menu objeví odkaz **Admin**.
+
+
 
 ## Spuštění krok za krokem
 
 ### 1. Supabase (databáze, přihlašování, fotky)
 1. Založte projekt na [supabase.com](https://supabase.com) (region Frankfurt).
 2. **SQL Editor** → vložte celý soubor `supabase/migrations/001_schema.sql` → **Run**.
-3. Totéž se souborem `supabase/migrations/002_storage.sql`.
+3. Totéž postupně se soubory `002_storage.sql`, `003_reviews.sql` a `004_phase2.sql`.
 4. **Authentication → URL Configuration:**
    - Site URL: `https://vasedomena.cz` (pro vývoj `http://localhost:3000`)
    - Redirect URLs: přidejte `https://vasedomena.cz/auth/callback` a `http://localhost:3000/auth/callback`
@@ -77,7 +91,7 @@ Každý pohyb je řádek v tabulce `credit_ledger` (nic se nepřepisuje ani nema
 Veškerá logika je v databázových funkcích (`place_offer`, `select_offer`, `cancel_request`,
 `expire_requests`, `confirm_payment`) a běží v transakcích – web nemůže kredity změnit napřímo.
 
-Test logiky: `npm run test:db` (spustí databázi v paměti a projde 38 scénářů).
+Test logiky: `npm run test:db` (spustí databázi v paměti a projde 64 scénářů).
 
 ## Struktura
 ```

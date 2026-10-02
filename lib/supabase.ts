@@ -23,6 +23,15 @@ export async function createClient() {
   );
 }
 
+/** Veřejný klient bez přihlášení – pro SEO stránky, které se mohou cachovat */
+export function createPublicClient() {
+  return createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { auth: { persistSession: false } },
+  );
+}
+
 /** Serverový klient s plnými právy. Jen pro webhooky, cron a e-maily. Nikdy do prohlížeče. */
 export function createAdminClient() {
   return createSupabaseClient(

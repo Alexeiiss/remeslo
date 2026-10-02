@@ -3,10 +3,58 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { requireMe } from "@/lib/session";
 import ConfirmButton from "@/components/ConfirmButton";
+import PhotoUploader from "@/components/PhotoUploader";
 import {
   czk, date, dateTime, JOB_SIZE_LABEL, OFFER_STATUS_LABEL, REQUEST_STATUS_LABEL,
 } from "@/lib/config";
-import { cancelRequest, placeOffer, replyReview, selectOffer, submitReview, withdrawOffer } from "./actions";
+import { cancelRequest, openDispute, placeOffer, replyReview, selectOffer, sendMessage, submitReview, withdrawOffer } from "./actions";
+
+/** Konverzace zákazníka s jedním řemeslníkem k této poptávce */
+async function Thread({ requestId, providerId, meId, open, otherName }: {
+  requestId: string; providerId: string; meId: string; open: boolean; otherName: string;
+}) {
+  const supabase = await createClient();
+  const { data: msgs } = await supabase.from("messages")
+    .select("id, sender_id, body, created_at")
+    .eq("request_id", requestId).eq("provider_id", providerId)
+    .order("created_at");
+  if (!open && !msgs?.length) return null;
+
+  return (
+    <details id={`zpravy-${providerId}`} open={!!msgs?.length}
+      style={{ borderTop: "1px solid var(--line)", marginTop: 14, paddingTop: 12 }}>
+      <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+        Zprávy{msgs?.length ? ` (${msgs.length})` : ""}
+      </summary>
+      <div className="stack" style={{ marginTop: 12 }}>
+        {msgs?.map((m) => {
+          const mine = m.sender_id === meId;
+          return (
+            <div key={m.id} style={{
+              alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "85%",
+              background: mine ? "var(--brand-soft)" : "var(--bg)", borderRadius: 10, padding: "8px 12px",
+              marginLeft: mine ? "auto" : 0,
+            }}>
+              <div className="small muted">{mine ? "Vy" : otherName} · {dateTime(m.created_at)}</div>
+              <div style={{ whiteSpace: "pre-wrap" }}>{m.body}</div>
+            </div>
+          );
+        })}
+        {open && (
+          <form action={sendMessage}>
+            <input type="hidden" name="request_id" value={requestId} />
+            <input type="hidden" name="provider_id" value={providerId} />
+            <textarea name="body" required maxLength={3000} style={{ minHeight: 70 }} placeholder="Napište zprávu…" />
+            <div className="row between" style={{ marginTop: 8 }}>
+              <span className="hint">Telefon a e-mail se před výběrem řemeslníka automaticky skryjí.</span>
+              <button className="btn secondary">Odeslat</button>
+            </div>
+          </form>
+        )}
+      </div>
+    </details>
+  );
+}
 
 type Review = {
   id: string; provider_id: string; rating: number; comment: string | null;
@@ -37,7 +85,7 @@ const RATING_OPTIONS = [
 
 type Props = {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ chyba?: string; ok?: string; nova?: string }>;
+  searchParams: Promise<{ chyba?: string; ok?: string; nova?: string; zprava?: string }>;
 };
 
 export default async function RequestPage({ params, searchParams }: Props) {
@@ -70,8 +118,9 @@ export default async function RequestPage({ params, searchParams }: Props) {
 
   return (
     <main className="container stack" style={{ maxWidth: 860 }}>
-      {sp.nova && <div className="alert ok">Poptávka je zveřejněná. Řemeslníkům z vašeho kraje jsme poslali upozornění. O nových nabídkách vám dáme vědět e-mailem.</div>}
+      {sp.nova && <div className="alert ok">Poptávka je zveřejněná. Řemeslníkům z vašeho kraje jsme poslali upozornění. Teď můžete přidat fotky, řemeslníkům pomohou s odhadem ceny.</div>}
       {sp.ok && <div className="alert ok">{sp.ok}</div>}
+      {sp.zprava && <div className="alert ok">Zpráva odeslána.</div>}
       {sp.chyba && <div className="alert error">{sp.chyba}</div>}
 
       {/* Detail poptávky */}
@@ -87,6 +136,13 @@ export default async function RequestPage({ params, searchParams }: Props) {
             {signed.map((s, i) => s.signedUrl && (
               <a key={i} href={s.signedUrl} target="_blank" rel="noreferrer"><img src={s.signedUrl} alt={`Fotka ${i + 1}`} /></a>
             ))}
+          </div>
+        )}
+        {isCustomer && r.status === "open" && (
+          <div style={{ marginBottom: 16 }}>
+            <PhotoUploader bucket="request-photos" folder={r.id} table="request_photos"
+              row={{ request_id: r.id }} max={6} current={photoRows?.length ?? 0}
+              label={photoRows?.length ? "Přidat další fotky" : "Přidat fotky (pomohou řemeslníkům s cenou)"} />
           </div>
         )}
         <div className="row small muted">
@@ -115,7 +171,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
       )}
 
       {isCustomer
-        ? <CustomerView request={r} review={review as Review | null} />
+        ? <CustomerView request={r} review={review as Review | null} meId={me.id} />
         : <ProviderView request={r} meId={me.id} isProvider={me.isProvider} review={review as Review | null} />}
     </main>
   );
@@ -123,7 +179,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
 
 /* ------------------------- Pohled zákazníka ------------------------- */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function CustomerView({ request: r, review }: { request: any; review: Review | null }) {
+async function CustomerView({ request: r, review, meId }: { request: any; review: Review | null; meId: string }) {
   const supabase = await createClient();
   const { data: offers } = await supabase
     .from("offers")
@@ -179,7 +235,7 @@ async function CustomerView({ request: r, review }: { request: any; review: Revi
           <div key={o.id} className="card">
             <div className="row between">
               <div>
-                <h3 style={{ margin: 0 }}>{p.company_name}</h3>
+                <h3 style={{ margin: 0 }}><Link href={`/firma/${o.provider_id}`} style={{ color: "inherit" }}>{p.company_name}</Link></h3>
                 <div className="small muted">
                   {p.city}{p.ico && ` · IČO ${p.ico}`} ·{" "}
                   {p.rating_count ? `★ ${Number(p.rating_avg).toFixed(1)} (${p.rating_count})` : "zatím bez hodnocení"}
@@ -211,6 +267,9 @@ async function CustomerView({ request: r, review }: { request: any; review: Revi
                 </ConfirmButton>
               </form>
             )}
+            <Thread requestId={r.id} providerId={o.provider_id} meId={meId}
+              open={o.status === "selected" || (r.status === "open" && o.status === "pending")}
+              otherName={p.company_name} />
           </div>
         );
       })}
@@ -224,6 +283,49 @@ async function CustomerView({ request: r, review }: { request: any; review: Revi
         </form>
       )}
     </section>
+  );
+}
+
+/* ------------------------- Reklamace (řemeslník) ------------------------- */
+const DISPUTE_STATUS: Record<string, string> = {
+  open: "Čeká na posouzení",
+  approved: "Uznána – kredity vráceny",
+  rejected: "Zamítnuta",
+};
+
+async function DisputeBox({ requestId, offerId, decidedAt }: { requestId: string; offerId: string; decidedAt: string }) {
+  const supabase = await createClient();
+  const { data: d } = await supabase.from("disputes").select("*").eq("offer_id", offerId).maybeSingle();
+  const deadline = new Date(new Date(decidedAt).getTime() + 30 * 86400_000);
+
+  if (d) {
+    return (
+      <div className="alert info" style={{ marginTop: 16 }}>
+        <strong>Reklamace: {DISPUTE_STATUS[d.status]}</strong>
+        <div className="small">{d.reason}</div>
+        {d.admin_note && <div className="small" style={{ marginTop: 6 }}>Vyjádření: {d.admin_note}</div>}
+      </div>
+    );
+  }
+  if (deadline < new Date()) return null;
+
+  return (
+    <details style={{ marginTop: 16 }}>
+      <summary className="small muted" style={{ cursor: "pointer" }}>
+        Zakázka neproběhla? Reklamovat kredity (do {date(deadline)})
+      </summary>
+      <form action={openDispute} style={{ marginTop: 10 }}>
+        <input type="hidden" name="request_id" value={requestId} />
+        <input type="hidden" name="offer_id" value={offerId} />
+        <div className="field">
+          <label>Důvod</label>
+          <textarea name="reason" required minLength={10} maxLength={2000} style={{ minHeight: 80 }}
+            placeholder="Např. zákazník nebere telefon, poptávka byla falešná, zákazník zakázku zrušil…" />
+          <div className="hint">Posoudíme to a při uznání vám kredity za zakázku vrátíme.</div>
+        </div>
+        <button className="btn secondary">Odeslat reklamaci</button>
+      </form>
+    </details>
   );
 }
 
@@ -285,6 +387,10 @@ async function ProviderView({ request: r, meId, isProvider, review }: { request:
             )}
           </div>
         )}
+        {myOffer.status === "selected" && <DisputeBox requestId={r.id} offerId={myOffer.id} decidedAt={myOffer.decided_at} />}
+        <Thread requestId={r.id} providerId={meId} meId={meId}
+          open={myOffer.status === "selected" || (r.status === "open" && myOffer.status === "pending")}
+          otherName="Zákazník" />
       </div>
     );
   }

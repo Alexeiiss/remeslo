@@ -1,3 +1,5 @@
+import Link from "next/link";
+import PhotoUploader from "@/components/PhotoUploader";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase";
@@ -27,7 +29,24 @@ async function saveProfile(formData: FormData) {
   redirect(count ? "/remeslnik/profil?ok=1" : "/remeslnik?vitejte=1");
 }
 
-type SP = Promise<{ chyba?: string; ok?: string }>;
+type SP = Promise<{ chyba?: string; ok?: string; foto?: string }>;
+
+const MAX_WORK_PHOTOS = 12;
+
+async function deletePhoto(formData: FormData) {
+  "use server";
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const id = String(formData.get("photo_id"));
+  const { data: ph } = await supabase.from("provider_photos").select("storage_path").eq("id", id).eq("provider_id", user!.id).maybeSingle();
+  if (ph) {
+    await supabase.storage.from("provider-photos").remove([ph.storage_path]);
+    await supabase.from("provider_photos").delete().eq("id", id);
+  }
+  revalidatePath("/remeslnik/profil");
+  revalidatePath(`/firma/${user!.id}`);
+  redirect("/remeslnik/profil#fotky");
+}
 
 export default async function ProviderProfile({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
@@ -43,6 +62,9 @@ export default async function ProviderProfile({ searchParams }: { searchParams: 
   ]);
   const catSet = new Set(myCats?.map((c) => c.category_id));
   const regSet = new Set(myRegs?.map((r) => r.region_id));
+  const { data: photos } = profile
+    ? await supabase.from("provider_photos").select("id, storage_path").eq("provider_id", me.id).order("created_at", { ascending: false })
+    : { data: null };
 
   return (
     <main className="container" style={{ maxWidth: 760 }}>
@@ -79,6 +101,32 @@ export default async function ProviderProfile({ searchParams }: { searchParams: 
         </div>
         <button className="btn">{profile ? "Uložit profil" : "Uložit a získat kredity"}</button>
       </form>
+
+      {profile && (
+        <section id="fotky" className="card" style={{ marginTop: 16 }}>
+          <div className="row between">
+            <h2 style={{ margin: 0 }}>Ukázky vašich prací</h2>
+            <Link href={`/firma/${me.id}`} className="small">Zobrazit veřejný profil →</Link>
+          </div>
+          <p className="muted small">Fotky hotových zakázek se ukážou na vašem veřejném profilu. Zákazníci podle nich vybírají. Max. {MAX_WORK_PHOTOS} fotek, velké fotky z mobilu se automaticky zmenší.</p>
+          {!!photos?.length && (
+            <div className="photos" style={{ marginBottom: 16 }}>
+              {photos.map((ph) => (
+                <form key={ph.id} action={deletePhoto} style={{ position: "relative" }}>
+                  <input type="hidden" name="photo_id" value={ph.id} />
+                  <img src={supabase.storage.from("provider-photos").getPublicUrl(ph.storage_path).data.publicUrl} alt="Ukázka práce" />
+                  <button title="Smazat" style={{
+                    position: "absolute", top: 4, right: 4, border: 0, borderRadius: 6, cursor: "pointer",
+                    background: "rgba(0,0,0,.6)", color: "#fff", padding: "2px 7px",
+                  }}>✕</button>
+                </form>
+              ))}
+            </div>
+          )}
+          <PhotoUploader bucket="provider-photos" folder={me.id} table="provider_photos"
+            row={{ provider_id: me.id }} max={MAX_WORK_PHOTOS} current={photos?.length ?? 0} />
+        </section>
+      )}
     </main>
   );
 }

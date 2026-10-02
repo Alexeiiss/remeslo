@@ -14,6 +14,9 @@ await db.exec(`
   grant execute on function auth.uid() to authenticated, anon;
 `);
 await db.exec(SQL);
+await db.exec(fs.readFileSync(new URL("../supabase/migrations/003_reviews.sql", import.meta.url), "utf8"));
+await db.exec(fs.readFileSync(new URL("../supabase/migrations/004_phase2.sql", import.meta.url), "utf8")
+  .split("-- ==================== STORAGE")[0]);
 await db.exec(`
   grant usage on schema public to authenticated;
   grant select, insert, update, delete on all tables in schema public to authenticated; grant usage on all sequences in schema public to authenticated;
@@ -143,6 +146,96 @@ await expectErr(() => db.query(`insert into credit_ledger (provider_id, kind, am
   "row-level security", "kredity nejde přidat napřímo");
 await expectErr(() => db.query(`select confirm_payment($1,'x')`, [pay]), "permission denied", "potvrzení platby nemůže volat uživatel");
 await db.exec(`reset role`);
+
+console.log("\n11) Hodnocení");
+await db.exec(`grant select, insert, update, delete on reviews to authenticated; revoke execute on function _refresh_provider_rating(uuid) from authenticated;`);
+await as(P3);
+await expectErr(() => db.query(`select submit_review($1, 5, 'x')`, [R1]), "NENI_VASE_POPTAVKA", "cizí člověk nemůže hodnotit");
+await as(C);
+await expectErr(() => db.query(`select submit_review($1, 5, 'x')`, [R3]), "NELZE_HODNOTIT", "nelze hodnotit poptávku bez vybraného řemeslníka");
+await expectErr(() => db.query(`select submit_review($1, 7, 'x')`, [R1]), "SPATNE_HODNOCENI", "hodnocení mimo 1–5 neprojde");
+const REV = (await one(`select submit_review($1, 4, 'Rychlé a čisté') id`, [R1])).id;
+const pp = await one(`select rating_avg::float a, rating_count c from provider_profiles where user_id=$1`, [P1]);
+ok(pp.a === 4 && pp.c === 1, "průměr řemeslníka se přepočítal (4.0, 1×)");
+await expectErr(() => db.query(`select submit_review($1, 1, 'znovu')`, [R1]), "UZ_HODNOCENO", "podruhé hodnotit nejde");
+await as(P3);
+await expectErr(() => db.query(`select reply_review($1, 'díky')`, [REV]), "NENI_VASE_HODNOCENI", "cizí řemeslník nemůže odpovědět");
+await as(P1);
+await db.query(`select reply_review($1, 'Děkujeme!')`, [REV]);
+ok((await one(`select reply from reviews where id=$1`, [REV])).reply === "Děkujeme!", "řemeslník odpověděl");
+await expectErr(() => db.query(`select reply_review($1, 'znovu')`, [REV]), "UZ_ODPOVEZENO", "odpovědět jde jen jednou");
+await db.exec(`set role authenticated`);
+await as(C);
+await expectErr(() => db.query(`update reviews set rating = 5 where id = $1 returning id`, [REV]).then(r => { if (!r.rows.length) throw new Error("row-level security"); }),
+  "row-level security", "hodnocení nejde napřímo přepsat");
+await db.exec(`reset role`);
+
+console.log("\n12) Zprávy");
+await db.exec(`grant select, insert, update, delete on messages, disputes, provider_photos to authenticated;
+  grant usage on all sequences in schema public to authenticated;
+  revoke execute on function expire_credits() from authenticated;`);
+await as(C);
+const R5 = (await one(`select create_request($1,$2,'Liberec','Nová zásuvka v garáži','Potřebuji přivést zásuvku do garáže, cca 10 m.','small',null) id`, [elektro, liberec])).id;
+await offer(P5, R5);
+await as(C);
+await db.query(`select send_message($1,$2,'Dobrý den, zavolejte mi na 777 123 456 nebo pis@seznam.cz')`, [R5, P5]);
+const m1 = (await one(`select body from messages where request_id=$1 order by id desc limit 1`, [R5])).body;
+ok(!m1.includes("777") && !m1.includes("@"), "před výběrem se telefon a e-mail ve zprávě skryjí: " + m1);
+await as(P5);
+await db.query(`select send_message($1,$2,'Rád, kdy se mohu přijet podívat?')`, [R5, P5]);
+await as(P4);
+await expectErr(() => db.query(`select send_message($1,$2,'ahoj')`, [R5, P5]), "NENI_VASE_VLAKNO", "cizí řemeslník do vlákna psát nemůže");
+await db.exec(`set role authenticated`);
+await as(P4);
+ok((await db.query(`select * from messages where request_id=$1`, [R5])).rows.length === 0, "cizí řemeslník zprávy nevidí");
+await as(C);
+ok((await db.query(`select * from messages where request_id=$1`, [R5])).rows.length === 2, "zákazník vidí celé vlákno");
+await db.exec(`reset role`);
+await as(C); await db.query(`select select_offer(id) from offers where request_id=$1 and provider_id=$2`, [R5, P5]);
+await db.query(`select send_message($1,$2,'Volejte 777 123 456')`, [R5, P5]);
+ok((await one(`select body from messages where request_id=$1 order by id desc limit 1`, [R5])).body.includes("777 123 456"), "po výběru se kontakty už neskrývají");
+
+console.log("\n13) Reklamace");
+const O5sel = (await one(`select id from offers where request_id=$1 and provider_id=$2`, [R5, P5])).id;
+const before = await avail(P5);
+await as(P4);
+await expectErr(() => db.query(`select open_dispute($1,'Zákazník nereaguje na telefon')`, [O5sel]), "NABIDKA_NEEXISTUJE", "cizí reklamaci podat nejde");
+await as(P5);
+const D1 = (await one(`select open_dispute($1,'Zákazník nereaguje na telefon ani e-mail') id`, [O5sel])).id;
+await expectErr(() => db.query(`select open_dispute($1,'Znovu a znovu a znovu')`, [O5sel]), "REKLAMACE_UZ_EXISTUJE", "druhou reklamaci na stejnou zakázku podat nejde");
+await expectErr(() => db.query(`select resolve_dispute($1,true,'ok')`, [D1]), "JEN_ADMIN", "řemeslník si reklamaci sám schválit nemůže");
+const ADMIN = U(9);
+await db.query(`insert into auth.users values ($1,'admin@test.cz','{}')`, [ADMIN]);
+await db.query(`update profiles set role='admin' where id=$1`, [ADMIN]);
+await as(ADMIN);
+await db.query(`select resolve_dispute($1,true,'Uznáno')`, [D1]);
+ok(await avail(P5) === before + 50, "schválená reklamace vrátila 50 kreditů");
+await expectErr(() => db.query(`select resolve_dispute($1,false,'x')`, [D1]), "REKLAMACE_VYRIZENA", "vyřízenou reklamaci nejde změnit");
+
+console.log("\n14) Admin úprava kreditů");
+await as(ADMIN);
+await db.query(`select admin_adjust_credits($1, 100, 'Kompenzace')`, [P4]);
+ok(await avail(P4) === 300, "admin přidal 100 kreditů");
+await expectErr(() => db.query(`select admin_adjust_credits($1, -1000, 'x')`, [P4]), "NEDOSTATEK_KREDITU", "nejde ubrat víc, než má");
+await as(P4);
+await expectErr(() => db.query(`select admin_adjust_credits($1, 100, 'x')`, [P4]), "JEN_ADMIN", "běžný uživatel si kredity přidat nemůže");
+
+console.log("\n15) Expirace kreditů");
+// P2 má 200 kreditů z bonusu; posuneme bonus 13 měsíců do minulosti
+await db.query(`update credit_ledger set created_at = now() - interval '13 months' where provider_id=$1 and kind='bonus'`, [P2]);
+// P3 má bonus 200 a utratil 0, ale koupí si nové kredity dnes
+await db.query(`update credit_ledger set created_at = now() - interval '13 months' where provider_id=$1 and kind='bonus'`, [P3]);
+const pay3 = (await one(`insert into payments (provider_id, package_code, credits, price_czk) values ($1,'p500',500,500) returning id`, [P3])).id;
+await db.query(`select confirm_payment($1,'TX-3')`, [pay3]);
+// P1: bonus starý, ale část utratil (150 strženo) a dnes koupil 1650
+await db.query(`update credit_ledger set created_at = now() - interval '13 months' where provider_id=$1 and kind='bonus'`, [P1]);
+const a1 = await avail(P1), a2 = await avail(P2), a3 = await avail(P3);
+await db.query(`select expire_credits()`);
+ok(await avail(P2) === a2 - 200, `P2: propadlo celých 200 starých kreditů (${a2} → ${await avail(P2)})`);
+ok(await avail(P3) === a3 - 200, `P3: propadlo jen 200 starých, nové zůstaly (${a3} → ${await avail(P3)})`);
+ok(await avail(P1) === a1 - 50, `P1: z 200 starých utratil 150, propadlo jen 50 (${a1} → ${await avail(P1)})`);
+await db.query(`select expire_credits()`);
+ok(await avail(P1) === a1 - 50 && await avail(P2) === a2 - 200, "druhé spuštění už nic dalšího nestrhne");
 
 console.log(`\nVýsledek: ${pass} OK, ${fail} chyb`);
 process.exit(fail ? 1 : 0);

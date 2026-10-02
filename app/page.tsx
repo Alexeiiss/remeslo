@@ -33,7 +33,7 @@ export default async function Home() {
           <h2>Co potřebujete udělat?</h2>
           <div className="grid grid-3">
             {categories?.map((c) => (
-              <Link key={c.slug} href={`/poptavka/nova?obor=${c.slug}`} className="cat">{c.name}</Link>
+              <Link key={c.slug} href={`/remeslnici/${c.slug}`} className="cat">{c.name}</Link>
             ))}
           </div>
         </section>

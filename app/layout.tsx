@@ -25,6 +25,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <nav className="nav">
               {!me && (
                 <>
+                  <Link href="/remeslnici">Najít řemeslníka</Link>
                   <Link href="/cenik">Pro řemeslníky</Link>
                   <Link href="/prihlaseni">Přihlásit</Link>
                   <Link href="/poptavka/nova" className="btn accent">Zadat poptávku</Link>
@@ -43,6 +44,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <Link href="/poptavka/nova" className="btn accent">Zadat poptávku</Link>
                 </>
               )}
+              {me && me.role === "admin" && <Link href="/admin">Admin</Link>}
               {me && (
                 <>
                   <Link href="/ucet">Účet</Link>
@@ -56,7 +58,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <footer className="footer">
           <div className="container row between">
             <span>© {new Date().getFullYear()} {SITE_NAME}</span>
-            <span className="row"><Link href="/cenik">Ceník pro řemeslníky</Link></span>
+            <span className="row"><Link href="/remeslnici">Řemeslníci podle oboru</Link><Link href="/cenik">Ceník pro řemeslníky</Link></span>
           </div>
         </footer>
       </body>
