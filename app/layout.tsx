@@ -1,0 +1,65 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import "./globals.css";
+import { SITE_NAME } from "@/lib/config";
+import { getMe } from "@/lib/session";
+import { signOut } from "./prihlaseni/actions";
+
+export const metadata: Metadata = {
+  title: { default: `${SITE_NAME} – řemeslníci, kteří platí jen za získané zakázky`, template: `%s | ${SITE_NAME}` },
+  description: "Zadejte poptávku zdarma a vyberte si z až 4 nabídek ověřených řemeslníků.",
+};
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const me = await getMe();
+  const [first, ...rest] = SITE_NAME.split(".");
+
+  return (
+    <html lang="cs">
+      <body>
+        <header className="header">
+          <div className="container">
+            <Link href="/" className="logo">
+              {first}{rest.length > 0 && <span>.{rest.join(".")}</span>}
+            </Link>
+            <nav className="nav">
+              {!me && (
+                <>
+                  <Link href="/cenik">Pro řemeslníky</Link>
+                  <Link href="/prihlaseni">Přihlásit</Link>
+                  <Link href="/poptavka/nova" className="btn accent">Zadat poptávku</Link>
+                </>
+              )}
+              {me && me.isProvider && (
+                <>
+                  <Link href="/remeslnik">Poptávky</Link>
+                  <Link href="/remeslnik/kredity">Kredity</Link>
+                  <Link href="/remeslnik/profil">Profil</Link>
+                </>
+              )}
+              {me && !me.isProvider && (
+                <>
+                  <Link href="/moje-poptavky">Moje poptávky</Link>
+                  <Link href="/poptavka/nova" className="btn accent">Zadat poptávku</Link>
+                </>
+              )}
+              {me && (
+                <>
+                  <Link href="/ucet">Účet</Link>
+                  <form action={signOut}><button className="link" type="submit">Odhlásit</button></form>
+                </>
+              )}
+            </nav>
+          </div>
+        </header>
+        {children}
+        <footer className="footer">
+          <div className="container row between">
+            <span>© {new Date().getFullYear()} {SITE_NAME}</span>
+            <span className="row"><Link href="/cenik">Ceník pro řemeslníky</Link></span>
+          </div>
+        </footer>
+      </body>
+    </html>
+  );
+}
