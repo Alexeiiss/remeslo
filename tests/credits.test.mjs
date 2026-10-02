@@ -19,6 +19,8 @@ await db.exec(fs.readFileSync(new URL("../supabase/migrations/004_phase2.sql", i
   .split("-- ==================== STORAGE")[0]);
 await db.exec(fs.readFileSync(new URL("../supabase/migrations/005_avatar.sql", import.meta.url), "utf8"));
 await db.exec(fs.readFileSync(new URL("../supabase/migrations/006_ico_ares.sql", import.meta.url), "utf8"));
+await db.exec(fs.readFileSync(new URL("../supabase/migrations/007_request_files.sql", import.meta.url), "utf8")
+  .split("\n").filter((l) => !l.includes("storage.buckets")).join("\n"));
 await db.exec(`
   grant usage on schema public to authenticated;
   grant select, insert, update, delete on all tables in schema public to authenticated; grant usage on all sequences in schema public to authenticated;

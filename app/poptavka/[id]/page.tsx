@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 import { requireMe } from "@/lib/session";
 import ConfirmButton from "@/components/ConfirmButton";
-import PhotoUploader from "@/components/PhotoUploader";
+import AttachmentUploader from "@/components/AttachmentUploader";
 import Avatar, { avatarUrl } from "@/components/Avatar";
 import {
   czk, date, dateTime, JOB_SIZE_LABEL, OFFER_STATUS_LABEL, REQUEST_STATUS_LABEL,
@@ -104,10 +104,15 @@ export default async function RequestPage({ params, searchParams }: Props) {
   if (!r) notFound();
 
   const isCustomer = r.customer_id === me.id;
-  const { data: photoRows } = await supabase.from("request_photos").select("storage_path").eq("request_id", id);
-  const { data: signed } = photoRows?.length
+  const { data: photoRows } = await supabase.from("request_photos")
+    .select("storage_path, file_name, content_type, size_bytes").eq("request_id", id).order("created_at");
+  const { data: signedRaw } = photoRows?.length
     ? await supabase.storage.from("request-photos").createSignedUrls(photoRows.map((p) => p.storage_path), 3600)
     : { data: [] as { signedUrl: string }[] };
+  // Fotky (staré záznamy bez typu jsou taky fotky) vs. ostatní soubory
+  const attachments = (photoRows ?? []).map((p, i) => ({ ...p, url: signedRaw?.[i]?.signedUrl ?? "" }));
+  const signed = attachments.filter((a) => !a.content_type || a.content_type.startsWith("image/")).map((a) => ({ signedUrl: a.url }));
+  const docs = attachments.filter((a) => a.content_type && !a.content_type.startsWith("image/"));
 
   const { data: contacts } = r.status === "assigned"
     ? await supabase.rpc("get_contacts", { p_request_id: id })
@@ -119,7 +124,7 @@ export default async function RequestPage({ params, searchParams }: Props) {
 
   return (
     <main className="container stack" style={{ maxWidth: 860 }}>
-      {sp.nova && <div className="alert ok">Poptávka je zveřejněná. Řemeslníkům z vašeho kraje jsme poslali upozornění. Teď můžete přidat fotky, řemeslníkům pomohou s odhadem ceny.</div>}
+      {sp.nova && <div className="alert ok">Poptávka je zveřejněná a řemeslníkům z vašeho kraje jsme poslali upozornění. O nových nabídkách vám dáme vědět e-mailem.</div>}
       {sp.ok && <div className="alert ok">{sp.ok}</div>}
       {sp.zprava && <div className="alert ok">Zpráva odeslána.</div>}
       {sp.chyba && <div className="alert error">{sp.chyba}</div>}
@@ -139,11 +144,22 @@ export default async function RequestPage({ params, searchParams }: Props) {
             ))}
           </div>
         )}
+        {docs.length > 0 && (
+          <div className="stack" style={{ marginBottom: 16 }}>
+            {docs.map((d) => (
+              <a key={d.storage_path} href={d.url} target="_blank" rel="noreferrer" download={d.file_name ?? undefined}
+                className="row" style={{ gap: 10, background: "var(--bg)", borderRadius: 8, padding: "8px 12px", textDecoration: "none", color: "inherit" }}>
+                <span style={{ fontSize: 20 }}>📄</span>
+                <span style={{ flex: 1 }}>{d.file_name ?? "Soubor"}</span>
+                {d.size_bytes && <span className="small muted">{d.size_bytes > 1048576 ? `${(d.size_bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(d.size_bytes / 1024))} kB`}</span>}
+                <span className="small">Stáhnout ↓</span>
+              </a>
+            ))}
+          </div>
+        )}
         {isCustomer && r.status === "open" && (
           <div style={{ marginBottom: 16 }}>
-            <PhotoUploader bucket="request-photos" folder={r.id} table="request_photos"
-              row={{ request_id: r.id }} max={6} current={photoRows?.length ?? 0}
-              label={photoRows?.length ? "Přidat další fotky" : "Přidat fotky (pomohou řemeslníkům s cenou)"} />
+            <AttachmentUploader requestId={r.id} current={photoRows?.length ?? 0} />
           </div>
         )}
         <div className="row small muted">

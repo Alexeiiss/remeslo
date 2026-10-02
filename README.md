@@ -41,7 +41,7 @@ Pak se v menu objeví odkaz **Admin**.
 ### 1. Supabase (databáze, přihlašování, fotky)
 1. Založte projekt na [supabase.com](https://supabase.com) (region Frankfurt).
 2. **SQL Editor** → vložte celý soubor `supabase/migrations/001_schema.sql` → **Run**.
-3. Totéž postupně se soubory `002_storage.sql`, `003_reviews.sql`, `004_phase2.sql`, `005_avatar.sql` a `006_ico_ares.sql`.
+3. Totéž postupně se soubory `002_storage.sql`, `003_reviews.sql`, `004_phase2.sql`, `005_avatar.sql`, `006_ico_ares.sql` a `007_request_files.sql`.
 4. **Authentication → URL Configuration:**
    - Site URL: `https://vasedomena.cz` (pro vývoj `http://localhost:3000`)
    - Redirect URLs: přidejte `https://vasedomena.cz/auth/callback` a `http://localhost:3000/auth/callback`
